@@ -1,280 +1,258 @@
-PCinfo	segment
-		assume cs:PCinfo, ds:PCinfo, es:nothing, ss:nothing
-	org 	100h
+TESTPC	SEGMENT
+		ASSUME	CS:TESTPC,	DS:TESTPC,	ES:NOTHING,	SS:NOTHING
+		ORG		100H
+
+START:	jmp		BEGIN
+
+;data
+AVAILABLEMEMORY  	db '  Amount of available memory:        b',0dh,0ah,'$'
+EXTENDEDMEMORY  	db '  Extended memory size:       kB',0dh,0ah,'$'
+HEAD  				db '  MCB Adress   MCB Type   Owner     	 Size        Name    ', 0dh, 0ah, '$'
+DATA  				db '                                                               ', 0dh, 0ah, '$'
+ERRORM   			db '  Error!', 0dh, 0ah, '$'
+
+;procedurs
+;----------------------------
+TETR_TO_HEX		PROC	near
+		and 	 al,0fh
+		cmp 	 al,09
+		jbe 	 NEXT
+		add 	 al,07
+NEXT:	add 	 al,30h
+		ret
+TETR_TO_HEX		ENDP
+;---------------------------
+BYTE_TO_HEX		PROC near 
+		push 	 cx
+		mov 	 ah,al
+		call 	 TETR_TO_HEX
+		xchg 	 al,ah
+		mov 	 cl,4
+		shr 	 al,cl
+		call 	 TETR_TO_HEX
+		pop 	 cx
+		ret
+BYTE_TO_HEX		ENDP
+;--------------------------
+WRD_TO_HEX		PROC	near
+		push 	 bx
+		mov 	 bh,ah
+		call 	 BYTE_TO_HEX
+		mov 	 [di],ah
+		dec 	 di
+		mov 	 [di],al
+		dec 	 di
+		mov 	 al,bh
+		call 	 BYTE_TO_HEX
+		mov 	 [di],ah
+		dec 	 di
+		mov 	 [di],al
+		pop 	 bx
+		ret	
+WRD_TO_HEX		ENDP
+;----------------------------
+BYTE_TO_DEC		PROC	near
+		push 	 cx
+		push 	 dx
+		xor 	 ah,ah
+		xor 	 dx,dx
+		mov 	 cx,10
+loop_bd:div 	 cx
+		or 		 dl,30h
+		mov 	 [si],dl
+		dec 	 si
+		xor	     dx,dx
+		cmp 	 ax,10
+		jae 	 loop_bd
+		cmp		 al,00h
+		je 		 end_l
+		or 		 al,30h
+		mov 	 [si],al
+end_l:	pop 	 dx
+		pop		 cx
+		ret
+BYTE_TO_DEC		ENDP
+;----------------------------
+_TO_DEC		PROC	near
+		push	 cx
+		push	 dx
+		push	 ax
+		mov		 cx,10
+_loop_bd:
+		div		 cx
+		or 		 dl,30h
+		mov 	 [si],dl
+		dec 	 si
+		xor		 dx,dx
+		cmp		 ax,10
+		jae		 _loop_bd
+		cmp		 ax,00h
+		jbe		 _end_l
+		or		 al,30h
+		mov		 [si],al
+_end_l:	
+		pop		 ax
+		pop		 dx
+		pop		 cx
+		ret
+_TO_DEC		ENDP
+;----------------------------
+PRINT PROC NEAR
+		push	 ax
+		mov 	 ah, 09h
+	    int 	 21h
+	    pop		 ax
+	    ret
+PRINT ENDP
+;----------------------------
+_AVAILABLEMEMORY PROC NEAR ; Search for available memory
+		push 	 ax
+		push 	 bx
+		push 	 dx
+		push 	 si
+		
+		xor 	 ax, ax
+		mov 	 ah, 04Ah
+		mov 	 bx, 0FFFFh
+		int 	 21h
+		mov 	 ax, 10h
+		mul 	 bx
+		
+		mov 	 si, offset AVAILABLEMEMORY
+		add 	 si, 23h 
+		call 	 _TO_DEC
+		
+		pop 	 si
+		pop 	 dx
+		pop 	 bx
+		pop 	 ax
+		ret
+_AVAILABLEMEMORY ENDP
+;----------------------------
+_EXTENDEDMEMORY PROC    near ; Search for extended memory
+		push 	 ax
+		push 	 bx
+		push 	 si
+		push 	 dx
+		
+		mov		 al, 30h
+		out		 70h, al 
+		in		 al, 71h
+		mov		 bl, al
+		mov		 al, 31h
+		out		 70h, al
+		in		 al, 71h
+		mov 	 ah, al
+		mov 	 al, bl
+		sub 	 dx, dx
+		
+		mov 	 si, offset EXTENDEDMEMORY
+		add 	 si, 28 
+		call 	 _TO_DEC
+		
+		pop		 dx
+		pop		 si
+		pop		 bx
+		pop		 ax
+		ret
+_EXTENDEDMEMORY ENDP
+;----------------------------
+_DATA PROC near ; Search for MCB
+		mov 	 di, offset DATA ; Address of MCB
+		mov 	 ax, es
+		add 	 di, 05h
+		call 	 WRD_TO_HEX
+
+		mov 	 di, offset DATA ; Type of MCB
+		add 	 di, 0Fh
+		xor 	 ah, ah
+		mov 	 al, es:[00h]
+		call 	 BYTE_TO_HEX
+		mov 	 [di], al
+		inc 	 di
+		mov 	 [di], ah
 	
-start:		
-	jmp		begin
+		mov 	 di, offset DATA ; Owner
+		mov 	 ax, es:[01h]
+		add 	 di, 1Dh
+		call 	 WRD_TO_HEX
 
-	;data
-	av_mem 	db 'Amount of available memory:            b$'
-	ex_mem 	db 'Size of extended memory:            Kb$'
-	mcb 	db 'List of memory control blocks:$'
-	typeMCB db 'MCB type: 00h$'
-	adrPSP 	db 'PSP adress: 0000h$'
-	size_s 	db 'Size:          b$'
-    endl	db  13, 10, '$'
-    tab		db 	9,'$'
-    error	db 'ERROR! Memory can not be allocated!$'
+		mov 	 di, offset DATA  ; Size
+		mov 	 ax, es:[03h]
+		mov 	 bx, 10h
+		mul 	 bx
+		add 	 di, 2Eh
+		push 	 si
+		mov 	 si, di
+		call 	 _TO_DEC
+		pop 	 si
 
-tetr_to_hex proc near
-    and 	al, 0Fh
-    cmp 	al, 09
-    jbe 	next
-    add 	al, 07
-next:
-    add 	al, 30h
-    ret
-   tetr_to_hex endp
+		mov 	 di, offset DATA  ; Name
+		add 	 di, 35h
+		mov 	 bx, 0h
+		print_:
+				 mov dl, es:[bx + 8]
+				 mov [di], dl
+				 inc di
+				 inc bx
+				 cmp bx, 8h
+		jne 	 print_
+		mov 	 ax, es:[3h]
+		mov  	 bl, es:[0h]
+		ret
+_DATA ENDP
+;----------------------------
+OUTPUT PROC NEAR  ; Search for a chain of memory management units
+		mov 	 ah, 52h
+		int 	 21h
+		sub 	 bx, 2h
+		mov 	 es, es:[bx]
+		output_:
+			call 	 _DATA
+			mov 	 dx, offset DATA
+			call 	 PRINT
+			mov 	 cx, es
+			add 	 ax, cx
+			inc 	 ax
+			mov 	 es, ax
+			cmp 	 bl, 4Dh
+			je 	  	 output_
+		ret
+OUTPUT ENDP
+;----------------------------
+BEGIN: 
+		call 	 _AVAILABLEMEMORY
+		mov		 dx, offset AVAILABLEMEMORY
+		call 	 PRINT
+		
+		call 	 _EXTENDEDMEMORY
+		mov		 dx, offset EXTENDEDMEMORY
+		call 	 PRINT
+		
+		mov 	 ah, 48h ; Request 64 KB of memory
+		mov 	 bx, 1000h
+		int 	 21h
 
-;Байт в al переводится в два символа 16-ричного числа в ax
-byte_to_hex proc near
-    push 	cx
-    mov 	ah, al
-    call 	tetr_to_hex
-    xchg 	al, ah
-    mov 	cl, 4
-    shr 	al, cl
-    call 	tetr_to_hex ;В al старшая цифра, в ah младшая
-    pop 	cx
-    ret
-   byte_to_hex endp
+		jc 	     memoryErr ; Error check
+		jmp 	 next_
 
-;Перевод в 16 сс 16-ти разрядного числа
-;ax - число, di - адрес последнего символа
-wrd_to_hex proc near
-    push 	bx
-    mov 	bh, ah
-    call 	byte_to_hex
-    mov 	[di], ah
-    dec 	di
-    mov 	[di], al
-    dec 	di
-    mov 	al, bh
-    call 	byte_to_hex
-    mov 	[di], ah
-    dec 	di
-    mov 	[di], al
-    pop 	bx
-    ret
-   wrd_to_hex endp
-
-;Перевод в 10 сс, si - адрес поля младшей цифры
-byte_to_dec proc near
-    push 	cx
-    push 	dx
-    xor 	ah, ah
-    xor 	dx, dx
-    mov 	cx, 10
-loop_bd:
-    div 	cx
-    or 		dl, 30h
-    mov 	[si], dl
-    dec 	si
-    xor 	dx, dx
-    cmp 	ax, 10
-    jae 	loop_bd
-    cmp 	al, 00h
-    je 		end_l
-    or 		al, 30h
-    mov 	[si], al
-end_l:
-    pop 	dx
-    pop 	cx
-    ret
-   byte_to_dec endp
-   
-wrd_to_dec proc near
-    push 	cx
-    push 	dx
-    mov  	cx, 10
-wloop_bd:   
-    div 	cx
-    or  	dl, 30h
-    mov 	[si], dl
-    dec 	si
-	xor 	dx, dx
-    cmp 	ax, 10
-    jae 	wloop_bd
-    cmp 	al, 00h
-    je 		wend_l
-    or 		al, 30h
-    mov 	[si], al
-wend_l:      
-    pop 	dx
-    pop 	cx
-    ret
-   wrd_to_dec endp
-
-;вывод строки
-print proc near
-    push 	ax
-    push 	dx
-    mov 	ah, 09h
-    int 	21h
-    pop 	dx
-    pop 	ax
-    ret
-   print endp
-
-;вывод символа
-print_symb proc near
-	push	ax
-	push	dx
-	mov		ah, 02h
-	int		21h
-	pop		dx
-	pop		ax
-	ret
-   print_symb endp
-   
-
-
-begin:
-
-;количество доступной памяти    
-	mov 	ah, 4Ah
-	mov 	bx, 0ffffh
-	int 	21h
-    
-	xor		dx, dx
-	mov 	ax, bx
-	mov 	cx, 10h
-	mul 	cx
+		memoryErr:
+			mov 	 dx, offset ErrorM
+			call 	 PRINT
+		next_: ; Freeing of memory
+			mov 	 ah, 4ah
+			mov 	 bx, offset PROGRAMM_ENDS
+			int 	 21h
+		
+		mov 	 dx, offset HEAD
+		call 	 PRINT
+		call 	 OUTPUT
+		
+		xor 	 al, al
+		mov 	 ah, 4ch
+		int 	 21h
 	
-	mov  	si, offset av_mem+37
-	call 	wrd_to_dec
-    
-	mov 	dx, offset av_mem
-	call 	print
-	mov		dx, offset endl
-	call	print
+		PROGRAMM_ENDS db 0
 	
-    
-;запрос памяти
-	xor		ax, ax
-	mov		ah, 48h	
-	mov		bx, 1000h
-	int		21h
-	jnc		mem_ok
-	mov		dx, offset error
-	call	print
-	mov		dx,	offset endl
-	call	print
-mem_ok:	
-
-;освобождение памяти
-    mov 	ax,offset SegEnd
-    mov 	bx, 10h
-    xor 	dx, dx
-    div 	bx
-    inc 	ax
-    mov 	bx, ax
-    mov 	al, 0
-    mov 	ah, 4Ah
-    int 	21h	
-    	
-;размер расширенной памяти    
-	mov		al, 30h
-	out		70h, al
-	in		al, 71h
-	mov		bl, al ;младший байт
-	mov		al, 31h
-	out		70h, al
-	in		al, 71h ;старший байт
-	mov		ah, al
-	mov		al, bl
-
-	mov	 	si, offset ex_mem+34
-	xor 	dx, dx
-	call 	wrd_to_dec
-	
-	mov		dx, offset ex_mem
-	call	print
-	mov		dx, offset endl
-	call 	print
-
-;цепочка блоков управления памятью    
-    mov		dx, offset mcb
-    call 	print
-	mov		dx, offset endl
-	call	print
-    
-    mov		ah, 52h
-    int 	21h
-    mov 	ax, es:[bx-2]
-    mov 	es, ax
-	
-    ;тип MCB
-tag1:
-	mov 	al, es:[0000h]
-    call 	byte_to_hex
-    mov		di, offset typeMCB+10
-    mov 	[di], ax
-      
-    mov		dx, offset typeMCB
-    call 	print
-    mov		dx, offset tab
-    call 	print
-     
-    ;сегментный адрес PSP владельца участка памяти    
-    mov 	ax, es:[0001h]
-    mov 	di, offset adrPSP+15
-    call 	wrd_to_hex
-    
-    mov		dx, offset adrPSP
-    call 	print
-    mov		dx, offset tab
-    call 	print
-    
-    ;размер участка в параграфах
-    mov 	ax, es:[0003h]
-    mov 	cx, 10h 
-    mul 	cx
-	
-	mov		si, offset size_s+13
-    call 	wrd_to_dec
-    mov		dx, offset size_s
-    call 	print  
-    mov		dx, offset tab
-    call 	print
-	
-    ;последние 8 байт
-    push 	ds
-    push 	es
-    pop 	ds
-    
-    mov 	dx, 08h
-    mov 	di, dx
-    mov 	cx, 8
-tag2:
-	cmp		cx,0
-	je		tag3
-    mov		dl, byte PTR [di]
-    call	print_symb
-    dec 	cx
-    inc		di
-    jmp		tag2
-tag3:    
-	pop 	ds
-	mov		dx, offset endl
-    call 	print
-    
-    ;проверка, последний блок или нет
-    cmp 	byte ptr es:[0000h], 5ah
-    je 		quit
-    
-    ;адрес следующего блока
-    mov 	ax, es
-    add 	ax, es:[0003h]
-    inc 	ax
-    mov 	es, ax
-    jmp 	tag1
-         
-quit:          
-  
-    xor 	ax, ax
-    mov 	ah, 4ch
-    int 	21h
-SegEnd:    
-PCinfo	ENDS
-		END    START
+TESTPC 	ENDS
+		END START
