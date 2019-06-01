@@ -19,8 +19,8 @@ DATA		SEGMENT
 	err_3_2	    db 'File not found (code 2)', 0dh, 0ah, '$'   							
 	err_3_3     db 'Way not found (code 3)', 0dh, 0ah, '$'			
 	
-	name1		db	'ovl1.ovl',0
-	name2		db	'ovl2.ovl',0	
+	name1		db	'/ovl1.ovl',0
+	name2		db	'/ovl2.ovl',0	
 	
 	adr 		dd 	0
 	keep_PSP 	dw 	0
