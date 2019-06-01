@@ -15,6 +15,15 @@ ROUT PROC FAR
 	KEEP_SS DW 0
 	KEEP_AX	DW 	?
     KEEP_SP DW 0
+	KEY_1	db 02h
+	KEY_2	db 03h
+	KEY_3	db 04h
+	KEY_4	db 05h
+	KEY_5	db 06h
+	KEY_6	db 07h
+	KEY_7	db 08h
+	KEY_8	db 09h
+	KEY_9	db 0Ah
 	
 	go_:
 	mov KEEP_SS, SS 
@@ -32,11 +41,68 @@ ROUT PROC FAR
 	push cx
 	mov al,0
 	in al,60h
-	cmp al,11h 
+	cmp al, KEY_1
+	je 	key1 
+		
+	cmp al, KEY_2
+	je 	key2 
+		
+	cmp al, KEY_3
+	je 	key3 
+		
+	cmp al, KEY_4
+	je 	key4 
+		
+	cmp al, KEY_5
+	je 	key5 
+		
+	
+	cmp al, KEY_6
+	je 	key6 
+		
+	cmp al, KEY_7 
+	je 	key7
+
+	cmp al, KEY_8
+	je 	key8
+	
+	cmp al, KEY_9
+	je 	key9
+	;cmp al,11h 
 	je do_req	
+	
 	pushf
 	call dword ptr cs:KEEP_IP 
 	jmp skip 	
+	
+	key1:
+		mov cl, 'Q'
+		jmp do_req
+	key2:
+		mov cl, 'W'
+		jmp do_req
+	key3:
+		mov cl, 'E'
+		jmp do_req
+	key4:
+		mov cl, 'R'
+		jmp do_req
+	key5:
+		mov cl, 'T'
+
+
+	key6:
+		mov cl, 'Y'
+		jmp do_req
+	key7:
+		mov cl, 'U'
+		jmp do_req
+	key8:
+		mov cl, 'I'
+		jmp do_req
+	key9:
+		mov cl, 'O'
+		jmp do_req
 	
 	do_req:
 	in al, 61h   
@@ -51,7 +117,7 @@ ROUT PROC FAR
 	buf_push:
 	mov al,0
 	mov ah,05h 
-	mov cl,03h 
+	;`mov cl,03h 
 	mov ch,00h
 	int 16h
 	or al,al
