@@ -5,8 +5,8 @@ TESTPC	SEGMENT
 START:	jmp		BEGIN
 
 ;data
-AVAILABLEMEMORY  	db '  Amount of available memory:        b',0dh,0ah,'$'
-EXTENDEDMEMORY  	db '  Extended memory size:       kB',0dh,0ah,'$'
+AVAILABLEMEMORY  		db '  Amount of available memory:        b',0dh,0ah,'$'
+EXTENDEDMEMORY  		db '  Extended memory size:       kB',0dh,0ah,'$'
 HEAD  				db '  MCB Adress   MCB Type   Owner     	 Size        Name    ', 0dh, 0ah, '$'
 DATA  				db '                                                               ', 0dh, 0ah, '$'
 ERRORM   			db '  Error!', 0dh, 0ah, '$'
@@ -72,7 +72,7 @@ end_l:	pop 	 dx
 		pop		 cx
 		ret
 BYTE_TO_DEC		ENDP
-;----------------------------
+;------------------------------------------- 
 _TO_DEC		PROC	near
 		push	 cx
 		push	 dx
@@ -81,8 +81,8 @@ _TO_DEC		PROC	near
 _loop_bd:
 		div		 cx
 		or 		 dl,30h
-		mov 	 [si],dl
-		dec 	 si
+		mov 	 	 [si],dl
+		dec 	 	 si
 		xor		 dx,dx
 		cmp		 ax,10
 		jae		 _loop_bd
@@ -111,12 +111,12 @@ _AVAILABLEMEMORY PROC NEAR ; Search for available memory
 		push 	 dx
 		push 	 si
 		
-		xor 	 ax, ax
+		sub 	 ax, ax
 		mov 	 ah, 04Ah
 		mov 	 bx, 0FFFFh
 		int 	 21h
 		mov 	 ax, 10h
-		mul 	 bx
+		mul 	 bx ; here have available memory
 		
 		mov 	 si, offset AVAILABLEMEMORY
 		add 	 si, 23h 
@@ -156,8 +156,9 @@ _EXTENDEDMEMORY PROC    near ; Search for extended memory
 		pop		 ax
 		ret
 _EXTENDEDMEMORY ENDP
+
 ;----------------------------
-_DATA PROC near ; Search for MCB
+_DATA PROC near ; by CMB offset 
 		mov 	 di, offset DATA ; Address of MCB
 		mov 	 ax, es
 		add 	 di, 05h
@@ -203,7 +204,7 @@ _DATA PROC near ; Search for MCB
 _DATA ENDP
 ;----------------------------
 OUTPUT PROC NEAR  ; Search for a chain of memory management units
-		mov 	 ah, 52h
+		mov 	 ah, 52h ; get pointer to list of list
 		int 	 21h
 		sub 	 bx, 2h
 		mov 	 es, es:[bx]
@@ -215,32 +216,32 @@ OUTPUT PROC NEAR  ; Search for a chain of memory management units
 			add 	 ax, cx
 			inc 	 ax
 			mov 	 es, ax
-			cmp 	 bl, 4Dh
+			cmp 	 bl, 4Dh ;while != 4D - last 
 			je 	  	 output_
 		ret
 OUTPUT ENDP
 ;----------------------------
 BEGIN: 
 		call 	 _AVAILABLEMEMORY
-		mov		 dx, offset AVAILABLEMEMORY
+		mov	 dx, offset AVAILABLEMEMORY
 		call 	 PRINT
 		
 		call 	 _EXTENDEDMEMORY
-		mov		 dx, offset EXTENDEDMEMORY
+		mov	 dx, offset EXTENDEDMEMORY
 		call 	 PRINT
 		
 		mov 	 ah, 48h ; Request 64 KB of memory
 		mov 	 bx, 1000h
 		int 	 21h
 
-		jc 	     memoryErr ; Error check
+		jc 	 memoryErr ; if CF == 1 error
 		jmp 	 next_
 
 		memoryErr:
 			mov 	 dx, offset ErrorM
 			call 	 PRINT
-		next_: ; Freeing of memory
-			mov 	 ah, 4ah
+		next_: 
+			mov 	 ah, 4ah ; mem free
 			mov 	 bx, offset PROGRAMM_ENDS
 			int 	 21h
 		
