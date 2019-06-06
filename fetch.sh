@@ -15,3 +15,4 @@ git fetch kortev
 git fetch luckashev
 git fetch tarasenko
 git fetch azhenilok
+git fetch mashina
