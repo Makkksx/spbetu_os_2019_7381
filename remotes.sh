@@ -11,3 +11,4 @@ git remote add minullin https://github.com/Fikafusik/spbetu_os_2019_7381.git
 git remote add pavlov https://github.com/AleAlexander/spbetu_os_2019_7381.git
 git remote add adamov https://github.com/yaroslavadamov/spbetu_os_2019_7381.git
 git remote add krevchik https://github.com/Angelina151612/spbetu_os_2019_7381.git
+git remote add kortev https://github.com/YuriyKortev/spbetu_os_2019_7381.git
