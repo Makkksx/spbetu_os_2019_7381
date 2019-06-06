@@ -1,256 +1,256 @@
+.286
+SSEG SEGMENT stack
+db 100h dup(?)
+SSEG ENDS
 
-DATA segment
-	parameter_block dw ? ;сегментный адрес среды
-					dd ? ;сегмент и смещение командной строки
-					dd ? ;сегмент и смещение первого FCB
-					dd ? ;сегмент и смещение второго FCB
-
-	error1_7    	db 'Memory control block destroyed', 10, 13, '$'
-	error1_8		db 'Not enough memory to perform the function', 10, 13, '$'
-	error1_9		db 'Wrong memory address', 10, 13, '$'
-		
-	error2_1 		db 'Number of function is incorrect', 10, 13, '$'
-	error2_2		db 'File not found', 10, 13, '$'
-	error2_5		db 'Disk error', 10, 13, '$'
-	error2_8		db 'Insufficient memory', 10, 13, '$'
-	error2_10		db 'Incorrect environment string', 10, 13, '$'
-	error2_11		db 'Wrong format', 10, 13, '$'
-
-	end0			db 'Normal completion', 10, 13, '$'
-	end1			db 'Completion by Ctrl-Break', 10, 13, '$'
-	end2			db 'Completion by device error', 10, 13, '$'
-	end3			db 'Completion by function 31h', 10, 13, '$'
-
-	endl 			db ' ', 10, 13, '$'
-
-	output_code		db 'End code: $'
-	
-	path  			db 20h dup (0)
-
-	keep_ss 		dw 0
-	keep_sp 		dw 0
-DATA ends
-
-ASTACK segment STACK
-	dw 100 dup (?) 
-ASTACK ends
-
-CODE segment
-    assume CS:CODE, DS:DATA, ES:DATA, SS:ASTACK
-
-TETR_TO_HEX     proc    near
-    and 	al, 0Fh
-    cmp 	al, 09
-    jbe 	NEXT
-    add 	al, 07
-NEXT: 	
-    add 	al, 30h
-    ret
-TETR_TO_HEX     endp
-
-BYTE_TO_HEX     proc    near		
-    push 	cx
-    mov 	ah,al
-    call 	TETR_TO_HEX
-    xchg 	al,ah
-    mov 	cl,4
-    shr 	al,cl
-    call 	TETR_TO_HEX 	
-    pop 	cx 				
-    ret	
-BYTE_TO_HEX     endp
-
-PRINT   proc    near			
-    push 	ax	
-    mov 	ah, 09h
-    int 	21h
-    pop 	ax
-    ret
-PRINT   endp
-
-ERROR_PROCESSING    proc    near
-    cmp 	ax, 7
-    mov 	dx, offset error1_7
-    je 		write_massage
-    cmp 	ax, 8
-    mov 	dx, offset error1_8
-    je 		write_massage
-    cmp 	ax, 9
-    mov 	dx, offset error1_9
-    je 		write_massage
+DATA SEGMENT
+	CB7 DB '04h: control block crached',0AH,0DH,'$'
+    CB8 DB '04h: memory not enough ',0AH,0DH,'$'
+    CB9 DB '04h: wrong address of control block',0AH,0DH,'$'
     
-write_massage:
-    call	 PRINT
-    ret
-ERROR_PROCESSING    endp
-
-CLEAR_MEMORY    proc    near
-    mov 	ax, ASTACK 
-    mov 	bx, es
-    sub 	ax, bx 
-    add 	ax, 10h 
-    mov 	bx, ax
-    mov 	ah, 4Ah
-    int 	21h
-    jnc 	end_clear
-
-    call 	ERROR_PROCESSING
-
-end_clear:
-    ret
-CLEAR_MEMORY    endp
-
-CREATION_PARAMETER_BLOCK    proc    near
-    mov  	ax, es:[2Ch]
-    mov 	parameter_block, ax
-    mov 	parameter_block + 2, es 
-    mov 	parameter_block + 4, 80h 
-    ret
-CREATION_PARAMETER_BLOCK endp
-
-ERR_PROCESSING  proc    near
-    cmp 	ax, 1
-    mov 	dx, offset error2_1
-    je 		write_message2
-    cmp 	ax, 2
-    mov 	dx, offset error2_2
-    je 		write_message2
-    cmp 	ax, 5
-    mov 	dx, offset error2_5
-    je 		write_message2
-    cmp 	ax, 8
-    mov 	dx, offset error2_8
-    je 		write_message2
-    cmp 	ax, 10
-    mov 	dx, offset error2_10
-    je 		write_message2
-    cmp 	ax, 11
-    mov 	dx, offset error2_11
+    NL1  DB '4B00: wrong function number', 0AH,0DH, '$'
+    NL2  DB '4B00: file not found', 0AH,0DH, '$'
+    NL5  DB '4B00: disk error', 0AH,0DH, '$'
+    NL8  DB '4B00: memory not enough', 0AH,0DH, '$'
+    NL10 DB '4B00: promt of environment icorrect', 0AH,0DH, '$'
+    NL11 DB '4B00: wrong format', 0AH,0DH, '$'
     
-write_message2:
-    call 	PRINT
+    RC0 DB 0AH,0DH,'program exit normally', 0AH,0DH, '$'
+    RC1 DB 0AH,0DH,'program exit by Ctrl-Break', 0AH,0DH, '$'
+    RC2 DB 0AH,0DH,'program exit by divice error', 0AH,0DH, '$'
+    RC3 DB 0AH,0DH,'program exit as resident', 0AH,0DH, '$'
+    
+    RET_CODE db 'al =  ',0ah, 0dh, '$'
+    
+    ;------------  PARAM_BLOCK  ------------------;
+    PARAMS dw 0 ; сегментный адрес среды
+    dw DATA, offset CMD_PROMT ;сегмент и смещение командной строки
+    dd 0
+    dd 0
+    ;---------  END OF PARAM_BLOCK  --------------;
+    CMD_PROMT db 0, ''
+    PATH_PROMT db 81h dup(0)
+DATA ENDS
+
+CODE SEGMENT
+	 ASSUME CS:CODE, DS:CODE, ES:CODE, SS:SSEG     
+
+
+FREE_MEMORY PROC NEAR
+    pusha
+    push ds
+    push es
+    
+    mov dx, cs:KEEP_PSP 
+    mov es, dx
+    mov bx, offset last_byte
+    shr bx, 4
+    inc bx
+    add bx, CODE
+    sub bx, cs:KEEP_PSP
+    mov ah, 4Ah
+    int 21h
+    
+    jnc free_memory_success
+    jmp free_memory_error
+    free_memory_success:
+        pop es
+        pop ds
+        popa
+        ret
+    free_memory_error:
+    
+    next7:
+    cmp ax, 7
+    jne next8
+    mov dx, offset CB7
+    jmp print_label
+    
+    next8:
+    cmp ax, 8
+    jne next9
+    mov dx, offset CB8
+    jmp print_label
+    
+    next9:
+    mov dx, offset CB9
+   
+    print_label:
+    call print
+    
+    mov ah, 4ch
+    mov al,0
+    int 21h
+FREE_MEMORY ENDP
+
+PRINT_NOT_LOAD_ERROR PROC NEAR
+    nextNL1:
+    cmp ax, 1
+    jne nextNL2
+    mov dx, offset NL1
+    jmp print_label_NL
+    
+    nextNL2:
+    cmp ax, 2
+    jne nextNL5
+    mov dx, offset NL2
+    jmp print_label_NL
+   
+    nextNL5:
+    cmp ax, 5
+    jne nextNL8
+    mov dx, offset NL5
+    jmp print_label_NL
+    
+    nextNL8:
+    cmp ax, 8
+    jne nextNL10
+    mov dx, offset NL8
+    jmp print_label_NL
+    
+    nextNL10:
+    cmp ax, 10
+    jne nextNL11
+    mov dx, offset NL10
+    jmp print_label_NL
+    
+    nextNL11:
+    mov dx, offset NL10
+ 
+    print_label_NL:
+    call print
+    
+    xor AL,AL
+	mov AH,4Ch
+	int 21H
+PRINT_NOT_LOAD_ERROR ENDP
+
+PRINT_RETURN_CODE PROC NEAR
+    nextRC0:
+    cmp ah, 0
+    jne nextRC1
+    mov dx, offset RC0
+    jmp print_label_RC
+    
+    nextRC1:
+    cmp ah, 1
+    jne nextRC2
+    mov dx, offset RC1
+    jmp print_label_RC
+    
+    nextRC2:
+    cmp ah, 2
+    jne nextRC3
+    mov dx, offset RC2
+    jmp print_label_RC
+    
+    nextRC3:
+    mov dx, offset RC3
+    
+    print_label_RC:
+    call print
+    
+    mov dx, DATA
+    mov ds, dx
+    mov dx, offset RET_CODE
+    mov di, dx
+    mov byte ptr [di+5], al
+    call print 
+    xor AL,AL
+	mov AH,4Ch
+	int 21H
+PRINT_RETURN_CODE ENDP
+
+PRINT PROC NEAR ; dx = OFFSET TO STR
+    pusha
+    push ds
+    mov ax, DATA
+    mov ds, ax
+    mov ah, 09h
+    int 21h
+    pop ds
+    popa
     ret
-ERR_PROCESSING  endp
+PRINT ENDP
 
-COMPLETION_PROCESSING   proc    near
-    mov 	dx, offset endl
-    call 	PRINT
-    cmp 	ah, 0
-    je 		normal
-    cmp 	ah, 1
-    mov 	dx, offset end1
-    je 		write_message3
-    cmp 	ah, 2
-    mov 	dx, offset end2
-    je 		write_message3
-    cmp 	ah, 3
-    mov 	dx, offset end3
-normal:
-    mov 	dx, offset  end0
-    call	PRINT
-    mov 	dx, offset output_code
-    call 	PRINT
-    call 	BYTE_TO_HEX
-    push 	ax
-    mov 	ah, 02h
-    mov 	dl, al
-    int 	21h
-    pop 	ax
-    xchg 	ah, al
-    mov 	ah, 02h
-    mov 	dl, al
-    int 	21h
-    jmp 	exit
-write_message3:
-    call 	PRINT
-exit:
+init_child_path proc near
+    pusha
+    push es
+    push ds
+    mov dx, cs:KEEP_PSP
+    mov ds, dx
+    mov dx, DATA
+    mov es, dx
+    mov dx, ds:[2ch]
+    mov ds, dx ; es - среда
+    mov si, 0
+    
+    cicl:
+    cmp word ptr ds:[si], 0
+    je break
+    inc si
+    jmp cicl
+    break:
+    
+    add si,4
+    mov di, offset PATH_PROMT
+    
+    cicl2:
+    cmp byte ptr ds:[si], 0
+    je break2
+    mov al, ds:[si]
+    mov byte ptr es:[di], al
+    inc si
+    inc di
+    jmp cicl2
+    break2:
+    
+    mov byte ptr es:[di-1], 'm'
+    mov byte ptr es:[di-2], 'o'
+    mov byte ptr es:[di-3], 'c'
+    mov byte ptr es:[di-5], '2'
+    
+    pop ds
+    pop es
+    popa
     ret
-COMPLETION_PROCESSING   endp
+init_child_path endp
 
-BASE_PROCESS    proc    near
-    mov 	es, es:[2ch]
-    mov 	si, 0
-
-m1:
-    mov 	dl, es:[si]
-    cmp 	dl, 0
-    je 		m2
-    inc 	si
-    jmp 	m1
+START:
+	push DS 
+	sub AX,AX 
+	push AX 
+    mov cs:KEEP_PSP, ds
     
-m2:
-    inc 	si
-    mov 	dl, es:[si]
-    cmp 	dl, 0
-    jne 	m1
-    add 	si, 3
-    lea 	di, path
+    call FREE_MEMORY
     
-m3:
-    mov 	dl, es:[si]
-    cmp 	dl, 0
-    je 		m4
-    mov 	[di], dl
-    inc 	di
-    inc 	si
-    jmp 	m3
+    call init_child_path 
     
-m4:
-    sub 	di, 8
+    mov bx, DATA
+    mov es, bx
+    mov ds, bx
+    mov bx, offset PARAMS
+    push ds
+    mov cs:KEEP_SS, ss
+    mov cs:KEEP_SP, sp
+    mov dx, offset PATH_PROMT
+    mov ax, 4b00h
+    int 21h
+    mov ss, cs:KEEP_SS
+    mov sp, cs:KEEP_SP
+    pop ds
+    jnc continue
+    call PRINT_NOT_LOAD_ERROR
     
-    mov 	[di], byte ptr 'L'	
-    mov 	[di + 1], byte ptr 'A'
-    mov 	[di + 2], byte ptr 'B'
-    mov 	[di + 3], byte ptr '2'
-    mov 	[di + 4], byte ptr '.'
-    mov 	[di + 5], byte ptr 'C'
-    mov 	[di + 6], byte ptr 'O'
-    mov 	[di + 7], byte ptr 'M'
-    mov 	dx, offset path 
+    continue:
+    mov ah, 4dh
+    int 21h
     
-    push 	ds
-    pop 	es
-    mov 	bx, offset parameter_block
-
-    mov 	keep_sp, SP
-    mov 	keep_ss, SS
-
-    mov 	ax, 4b00h
-    int 	21h
-    jnc 	success
-
-    push 	ax
-    mov 	ax, DATA
-    mov 	ds, ax
-    pop 	ax
-    mov 	ss, keep_ss
-    mov 	sp, keep_sp
-
-error:
-    call 	ERR_PROCESSING
-    ret
+    call PRINT_RETURN_CODE
     
-success:
-    mov     ax, 4d00h
-    int     21h
-
-    call	COMPLETION_PROCESSING
-    ret
-BASE_PROCESS endp
-
-MAIN proc far
-    mov 	ax, data
-    mov 	ds, ax
-
-    call 	CLEAR_MEMORY
-    call 	CREATION_PARAMETER_BLOCK
-    call 	BASE_PROCESS
-
-    xor 	al, al
-    mov 	ah, 4Ch
-    int 	21h
-MAIN endp
-
-CODE ends
-
-end MAIN
+    KEEP_PSP DW 0h
+    KEEP_SS DW 0h
+    KEEP_SP DW 0h
+    last_byte:
+CODE ENDS
+END START
