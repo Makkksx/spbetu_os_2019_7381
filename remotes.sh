@@ -14,3 +14,4 @@ git remote add krevchik https://github.com/Angelina151612/spbetu_os_2019_7381.gi
 git remote add kortev https://github.com/YuriyKortev/spbetu_os_2019_7381.git
 git remote add luckashev https://github.com/NovelCoZ/spbetu_os_2019_7381.git
 git remote add tarasenko https://github.com/Eg0R0828/spbetu_os_2019_7381.git
+git remote add azhenilok https://github.com/Azhenilok/spbetu_os_2019_7381.git
