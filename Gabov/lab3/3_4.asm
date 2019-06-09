@@ -2,7 +2,7 @@ TESTPC	SEGMENT
 		ASSUME	CS:TESTPC,	DS:TESTPC,	ES:NOTHING,	SS:NOTHING
 		ORG		100H
 
-START:	jmp		BEGIN
+START:	jmp BEGIN
 
 ;data
 AVAILABLEMEMORY  		db '  Amount of available memory:        b',0dh,0ah,'$'
@@ -11,18 +11,17 @@ HEAD  				db '  MCB Adress   MCB Type   Owner     	 Size        Name    ', 0dh, 
 DATA  				db '                                                               ', 0dh, 0ah, '$'
 ERRORM   			db '  Error!', 0dh, 0ah, '$'
 
-;procedurs
-;----------------------------
-TETR_TO_HEX		PROC	near
-		and 	 al,0fh
-		cmp 	 al,09
+
+TETR_TO_HEX PROC near
+		and 	 al, 0fh
+		cmp 	 al, 09
 		jbe 	 NEXT
-		add 	 al,07
-NEXT:	add 	 al,30h
+		add 	 al, 07
+NEXT:		add 	 al, 30h
 		ret
-TETR_TO_HEX		ENDP
-;---------------------------
-BYTE_TO_HEX		PROC near 
+TETR_TO_HEX ENDP
+
+BYTE_TO_HEX PROC near 
 		push 	 cx
 		mov 	 ah,al
 		call 	 TETR_TO_HEX
@@ -32,9 +31,9 @@ BYTE_TO_HEX		PROC near
 		call 	 TETR_TO_HEX
 		pop 	 cx
 		ret
-BYTE_TO_HEX		ENDP
-;--------------------------
-WRD_TO_HEX		PROC	near
+BYTE_TO_HEX ENDP
+
+WRD_TO_HEX PROC	near
 		push 	 bx
 		mov 	 bh,ah
 		call 	 BYTE_TO_HEX
@@ -49,77 +48,79 @@ WRD_TO_HEX		PROC	near
 		mov 	 [di],al
 		pop 	 bx
 		ret	
-WRD_TO_HEX		ENDP
-;----------------------------
-BYTE_TO_DEC		PROC	near
+WRD_TO_HEX ENDP
+
+BYTE_TO_DEC PROC near
 		push 	 cx
 		push 	 dx
 		xor 	 ah,ah
 		xor 	 dx,dx
 		mov 	 cx,10
-loop_bd:div 	 cx
-		or 		 dl,30h
-		mov 	 [si],dl
-		dec 	 si
-		xor	     dx,dx
-		cmp 	 ax,10
+		loop_bd:
+			div 	 cx
+			or 		 dl,30h
+			mov 	 [si],dl
+			dec 	 si
+			xor	     dx,dx
+			cmp 	 ax,10
 		jae 	 loop_bd
-		cmp		 al,00h
-		je 		 end_l
-		or 		 al,30h
+		cmp	 al,00h
+		je 	 end_l
+		or 	 al,30h
 		mov 	 [si],al
-end_l:	pop 	 dx
-		pop		 cx
+end_l:		
+		pop 	 dx
+		pop	 cx
 		ret
-BYTE_TO_DEC		ENDP
-;------------------------------------------- 
+BYTE_TO_DEC ENDP
+
 _TO_DEC		PROC	near
-		push	 cx
-		push	 dx
-		push	 ax
-		mov		 cx,10
+		push	cx
+		push	dx
+		push	ax
+		mov	cx,10
 _loop_bd:
-		div		 cx
-		or 		 dl,30h
-		mov 	 	 [si],dl
-		dec 	 	 si
-		xor		 dx,dx
-		cmp		 ax,10
-		jae		 _loop_bd
-		cmp		 ax,00h
-		jbe		 _end_l
-		or		 al,30h
-		mov		 [si],al
+		div	cx
+		or 	dl,30h
+		mov 	[si],dl
+		dec 	si
+		xor	dx,dx
+		cmp	ax,10
+		jae	_loop_bd
+		cmp	ax,00h
+		jbe	_end_l
+		or	al,30h
+		mov	[si],al
 _end_l:	
-		pop		 ax
-		pop		 dx
-		pop		 cx
+		pop    	ax
+		pop	dx
+		pop	cx
 		ret
 _TO_DEC		ENDP
-;----------------------------
+
 PRINT PROC NEAR
 		push	 ax
 		mov 	 ah, 09h
-	    int 	 21h
-	    pop		 ax
-	    ret
+	   	int 	 21h
+	    	pop	 ax
+	    	ret
 PRINT ENDP
-;----------------------------
-_AVAILABLEMEMORY PROC NEAR ; Search for available memory
+
+_AVAILABLEMEMORY PROC NEAR ; размер доступной памяти
 		push 	 ax
 		push 	 bx
 		push 	 dx
 		push 	 si
 		
 		sub 	 ax, ax
-		mov 	 ah, 04Ah
-		mov 	 bx, 0FFFFh
+		mov 	 ah, 04Ah ; 
+		mov 	 bx, 0FFFFh ; узнать размер доступной памяти
 		int 	 21h
 		mov 	 ax, 10h
-		mul 	 bx ; here have available memory
+		mul 	 bx ; размер доступной памяти в ax
 		
 		mov 	 si, offset AVAILABLEMEMORY
-		add 	 si, 23h 
+		add 	 si, 23h ; смещение чтобы вывести число красиво 
 		call 	 _TO_DEC
 		
 		pop 	 si
@@ -128,20 +129,20 @@ _AVAILABLEMEMORY PROC NEAR ; Search for available memory
 		pop 	 ax
 		ret
 _AVAILABLEMEMORY ENDP
-;----------------------------
-_EXTENDEDMEMORY PROC    near ; Search for extended memory
+
+_EXTENDEDMEMORY PROC    near ; Узнаем размер недоступной памяти
 		push 	 ax
 		push 	 bx
 		push 	 si
 		push 	 dx
 		
-		mov		 al, 30h
-		out		 70h, al 
-		in		 al, 71h
-		mov		 bl, al
-		mov		 al, 31h
-		out		 70h, al
-		in		 al, 71h
+		mov	 al, 30h
+		out	 70h, al 
+		in	 al, 71h
+		mov	 bl, al
+		mov	 al, 31h
+		out	 70h, al
+		in	 al, 71h
 		mov 	 ah, al
 		mov 	 al, bl
 		sub 	 dx, dx
@@ -157,7 +158,6 @@ _EXTENDEDMEMORY PROC    near ; Search for extended memory
 		ret
 _EXTENDEDMEMORY ENDP
 
-;----------------------------
 _DATA PROC near ; by CMB offset 
 		mov 	 di, offset DATA ; Address of MCB
 		mov 	 ax, es
@@ -198,16 +198,17 @@ _DATA PROC near ; by CMB offset
 				 inc bx
 				 cmp bx, 8h
 		jne 	 print_
+		
 		mov 	 ax, es:[3h]
 		mov  	 bl, es:[0h]
 		ret
 _DATA ENDP
-;----------------------------
+
 OUTPUT PROC NEAR  ; Search for a chain of memory management units
 		mov 	 ah, 52h ; get pointer to list of list
 		int 	 21h
 		sub 	 bx, 2h
-		mov 	 es, es:[bx]
+		mov 	 es, es:[bx] ; адрес первого
 		output_:
 			call 	 _DATA
 			mov 	 dx, offset DATA
@@ -220,7 +221,7 @@ OUTPUT PROC NEAR  ; Search for a chain of memory management units
 			je 	  	 output_
 		ret
 OUTPUT ENDP
-;----------------------------
+
 BEGIN: 
 		call 	 _AVAILABLEMEMORY
 		mov	 dx, offset AVAILABLEMEMORY
