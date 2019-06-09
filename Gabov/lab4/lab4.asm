@@ -1,4 +1,3 @@
-
 INT_STACK SEGMENT STACK
 	DW 32 DUP (?)
 INT_STACK ENDS
@@ -8,75 +7,42 @@ STACK SEGMENT STACK
 STACK ENDS
 
 DATA SEGMENT
-	str_loaded DB 'New interruption is succesfully loaded!',0DH,0AH,'$'
-	str_already_loaded DB 'New interruption has been already loaded!',0DH,0AH,'$'
-	str_unloaded DB 'New interruption is unloaded!',0DH,0AH,'$'
-	endl db 0DH,0AH,'$'
+	str_loaded DB 'Interruption is loaded!',0DH,0AH,'$'
+	str_already_loaded DB 'Interruption was loaded!',0DH,0AH,'$'
+	str_unloaded DB 'Interruption is unloaded!',0DH,0AH,'$'
 DATA ENDS
 
 CODE SEGMENT
 	ASSUME CS:CODE, DS:DATA, ES:DATA, SS:STACK
 START: JMP MAIN
 
-
-; Сокращение для функции вывода.
-PRINT_DX proc near
+PRINT proc near
 	mov AH,09h
 	int 21h
 	ret
-PRINT_DX endp
-
-; Установка позиции курсора
-SET_CURSOR_POSITION PROC 
-	push AX
-	push BX
-	push CX
-	mov AH,2
-	mov BH,0
-	int 10h
-	pop CX
-	pop BX
-	pop AX
-	ret
-SET_CURSOR_POSITION ENDP
-
-; Получение позиции курсора
-; Вход: BH = видео страница
-; Выход: DH, DL = текущие строка, колонка курсора
-;		 CH, CL = текущие начальная, конечная строки
-GET_CURSOR_POSITION PROC
-	push AX
-	push BX
-	push CX
-	mov AH,3
-	mov BH,0
-	int 10h
-	pop CX
-	pop BX
-	pop AX
-	ret
-GET_CURSOR_POSITION ENDP
+PRINT endp
 
 ; Обработчик прерывания
 ROUT proc far 
-	jmp ROUT_begin
+	jmp ROUT_CODE
 
-	; Data
-	SIGNATURE DB 'SIGN' ; идентификатор (сигнатура)
+	FLAG DB 'ZZZZ' ; идентификатор (сигнатура)
 	KEEP_CS DW 0 ; сегмент
 	KEEP_IP DW 0 ; смещение
 	KEEP_PSP DW 0 ; PSP
 	IS_LOADED DB 0 ; флаг загрузки
-	str_counter DB 'Number of handler calls (00000)$' ;счётчик
+	count DB 'Number of handler calls (00000)$' ;счётчик
 	KEEP_SS DW 0
 	KEEP_AX DW 0	
 	KEEP_SP DW 0
 
-ROUT_begin:
+ROUT_CODE:
+
+	; сохраним чтобы восстановить позже
 	mov KEEP_AX, ax
 	mov KEEP_SS, ss
 	mov KEEP_SP, sp
-	mov ax, seg INT_STACK ;устанавливаем собственный стек
+	mov ax, seg INT_STACK 
 	mov ss, ax
 	mov sp, 32h
 	mov ax, KEEP_ax
@@ -86,37 +52,38 @@ ROUT_begin:
 	push ds
 	push es
 
+	; переход к выводу обработчика
 	cmp IS_LOADED, 1
 	je ROUT_restore_default
-	call GET_CURSOR_POSITION
-	push DX ; в dx текущее положение курсора
+	call GET_CURS
+	push DX 
 	mov DH, 0 ; строка
 	mov DL, 0 ; столбик
-	call SET_CURSOR_POSITION
+	call SET_CURS
 
-ROUT_number_of_interaptions:	
+ROUT_count:	
 	push ax
 	push bx
 	push si 
 	push ds
-	mov ax,SEG str_counter
-	mov ds,ax
-	mov bx,offset str_counter
-	add bx,26 ;смещение 
-
+	mov ax, SEG count
+	mov ds, ax
+	mov bx, offset count
+	add bx, 26; к последней цифре
 	mov si,3
+
 next_number:
-		mov ah,[bx+si]
+		mov ah, [bx+si]
 		inc ah
-		cmp ah,58 ; сравниваем с 9
-	jne ROUT_after_adding_1
-		mov ah,48 ; присваиваем 0
-		mov [bx+si],ah
+		cmp ah, '9' 
+	jne ROUT_add_1
+		mov ah, '0' 
+		mov [bx+si], ah
 		dec si
 		cmp si, 0
 	jne next_number
 
-ROUT_after_adding_1:
+ROUT_add_1:
 	mov [bx+si],ah
     	pop ds
     	pop si
@@ -125,33 +92,41 @@ ROUT_after_adding_1:
 
 	push es 
 	push bp
-	mov ax,SEG str_counter
-	mov es,ax
-	mov ax,offset str_counter
-	mov bp,ax
-	mov ah,13h 
-	mov al,0 
-	mov cx,31 ; длина строки
-	mov bh,0
+	mov ax, SEG count
+	mov es, ax
+	mov ax, offset count
+	mov bp, ax
+	mov ah, 13h 
+	mov al, 0 
+	mov cx, 31 ; длина строки
+	mov bh, 0
 	int 10h
+	
 	pop bp
 	pop es
 	
-	; возврат положения курсора
+	;положение курсора
 	pop dx
-	call SET_CURSOR_POSITION
+	call SET_CURS
 	jmp ROUT_end
 
 	; Восстановление дефолтного вектора и освобождение памяти
 ROUT_restore_default:
 	CLI ; команда игнорирования прерываний от внешних устройств
-	; восстаналвиваем вектор
 	mov dx,KEEP_IP
 	mov ax,KEEP_CS
 	mov ds,ax
 	mov ah,25h 
 	mov al,1Ch 
 	int 21h
+
+	mov es, KEEP_PSP
+	mov es, es:[2Ch]
+	mov ah, 49h
+	int 21h 
+	mov es, KEEP_PSP
+	mov ah, 49h 
+	int 21h	
 	STI ; останов игнорирования прерываний
 
 ROUT_end:
@@ -165,98 +140,130 @@ ROUT_end:
 	iret
 ROUT endp
 
+; Установка позиции курсора
+SET_CURS PROC 
+	push AX
+	push BX
+	push CX
+	mov AH, 2
+	mov BH, 0
+	int 10h
+	pop CX
+	pop BX
+	pop AX
+	ret
+SET_CURS ENDP
+
+GET_CURS PROC
+	push AX
+	push BX
+	push CX
+	mov AH, 3
+	mov BH, 0
+	int 10h
+	pop CX
+	pop BX
+	pop AX
+	ret
+GET_CURS ENDP
+
 ; Проверка состояния загрузки нового прерывания в память
-CHECK_HANDLER proc near
-	mov ah,35h 
-	mov al,1Ch 
-	int 21h ; в es bx получим адрес обработчика прерываний
-	mov si, offset SIGNATURE 
-	sub si, offset ROUT ; в si смещение сигнатуры от начала функции
+INTERAPTION_STATE proc near
+
+	;в es::bx получим адрес обработчика прерываний
+	mov ah, 35h 
+	mov al, 1Ch 
+	int 21h; 
 	
-	mov ax,'IS'
-	cmp ax,es:[bx+si]
-	jne not_loaded
-	mov ax, 'NG'
-	cmp ax,es:[bx+si+2] 
-	je loaded
+	; получаем в SI идентификатор нашего обработчика
+	mov si, offset FLAG
+	sub si, offset ROUT
+	
+	; проверяем какой обработчик получили
+	mov ax, 'ZZ'
+	cmp ax, es:[bx + si]
+	jne load_interaption
+	cmp ax, es:[bx + si + 2] 
+	je already_loaded
+	
 	; Загружаем новый Обработчик
-not_loaded:
-	call SET_HANDLER
-	; Вычисляем память для резидента
-	mov dx,offset LAST_BYTE ; в байтах
-	mov cl,4 ;в параграфы в dx
-	shr dx,cl
+load_interaption:
+	call SET_INTERAPTION
+	mov dx, offset LAST_BYTE 
+	mov cl, 4 
+	shr dx, cl
 	inc dx
-	add dx,CODE ;прибавляем адрес code seg
-	sub dx,KEEP_PSP ;вычитаем адрес psp
-	xor ax,ax
-	mov ah,31h
+	add dx, CODE ;прибавляем адрес code ceгмента
+	sub dx, KEEP_PSP ;вычитаем адрес начала сегмента
+	mov ah, 31h
 	int 21h 
 
-; Проверка аргумента cmd
-loaded: 
+; проверяем на аргумент командной строки
+already_loaded: 
 	push es
 	push ax
-	mov ax,KEEP_PSP 
-	mov es,ax
+	mov ax, KEEP_PSP 
+	mov es, ax
 	cmp byte ptr es:[82h],'/' 
-	je next_symbol
-next_symbol:
+	jne no_args
 	cmp byte ptr es:[83h],'u' 
-	jne args_false
+	jne no_args
 	cmp byte ptr es:[84h],'n'
-	je do_unload
+	je unload_interaption
 
-args_false:
+no_args:
 	pop ax
 	pop es
-	mov dx,offset str_already_loaded
-	call PRINT_DX
+	mov dx, offset str_already_loaded
+	call PRINT
 	ret
 
-; Выгружаем свой Обработчик
-do_unload:
+; выгружаем реализованный обработчик
+unload_interaption:
 	pop ax
 	pop es
-	mov byte ptr es:[BX+SI+10],1
-	mov dx,offset str_unloaded
-	call PRINT_DX
-	ret
-CHECK_HANDLER endp
+	mov byte ptr es:[BX+SI+10], 1 ; флаг выгрузки обработчика
 
-;установка написанного прерывания в поле векторов прерываний
-SET_HANDLER proc near 
+	mov dx, offset str_unloaded
+	call PRINT
+	ret
+INTERAPTION_STATE endp
+
+;установка реализованного прерывания 
+SET_INTERAPTION proc near 
 	push dx
 	push ds
 
-	mov ah,35h
-	mov al,1Ch
-	int 21h; es:bx
-	mov KEEP_IP,bx 
-	mov KEEP_CS,es
+	; получаем адрес обработчика
+	mov ah, 35h
+	mov al, 1Ch
+	int 21h; 
 
-	mov dx,offset ROUT
-	mov ax,seg ROUT
-	mov ds,ax
-	mov ah,25h
-	mov al,1Ch
+ 	; сохраняем значения для востановления
+	mov KEEP_IP, bx 
+	mov KEEP_CS, es
+
+	; установили своё прерывание
+	mov dx, offset ROUT
+	mov ax, seg ROUT
+	mov ds, ax
+	mov ah, 25h
+	mov al, 1Ch
 	int 21h
 
 	pop ds
-	mov dx,offset str_loaded
-	call PRINT_DX
+	mov dx, offset str_loaded
+	call PRINT
 	pop dx
 	ret
-SET_HANDLER ENDP 
-
+SET_INTERAPTION ENDP 
 
 MAIN:
 	mov AX,DATA
 	mov DS,AX
-	mov KEEP_PSP,ES
-	call CHECK_HANDLER
-	xor AL,AL
-	mov AH,4Ch ;выход 
+	mov KEEP_PSP, ES
+	call INTERAPTION_STATE
+	mov AH, 4Ch  
 	int 21H
 LAST_BYTE:
 	CODE ENDS	
