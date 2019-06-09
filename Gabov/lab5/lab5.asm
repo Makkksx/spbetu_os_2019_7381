@@ -1,314 +1,226 @@
-code segment
-	assume cs:code, ds:data, ss:Tstack
-	
-start_mem:
-	PSP dw 0
-	KEEP_CS dw 0
-	KEEP_IP dw 0
-	Int9 dd 0
-    Scancode_1 db 2
-    Scancode_2 db 3
-    Scancode_3 db 4
-    Scancode_4 db 5
-    Scancode_5 db 6
-    Scancode_6 db 7
-    Scancode_7 db 8
-    Scancode_8 db 9
-    Scancode_9 db 10
-    Scancode_0 db 11
-	
-	KEEP_AX dw 0
-	KEEP_SS dw 0
-	KEEP_SP dw 0
-	MY_STACK dw 100 DUP(?)
-	end_of_my_stack:
+INT_STACK SEGMENT STACK
+	DW 32 DUP (?)
+INT_STACK ENDS
 
-push_main macro
-	mov     CS:KEEP_AX, AX														
-	mov     CS:KEEP_SS, SS														
-	mov     CS:KEEP_SP, SP														
-																				
-	mov     AX, SEG MY_STACK													
-	mov     SS, AX																
-	mov     SP, offset end_of_my_stack											
+CODE SEGMENT
+	ASSUME CS:CODE, DS:DATA, ES:DATA, SS:STACK
+START: JMP MAIN
 
-	push 	ax
-	push 	bx
-	push 	cx
-	push 	dx
-endm
+DATA SEGMENT
+	str_loaded DB 'New interruption is succesfully loaded!',0DH,0AH,'$'
+	str_already_loaded DB 'New interruption has been already loaded!',0DH,0AH,'$'
+	str_unloaded DB 'New interruption is unloaded!',0DH,0AH,'$'
+	endl db 0DH,0AH,'$'
+DATA ENDS
 
-pop_main macro
-	pop 	dx
-	pop 	cx
-	pop 	bx
-	pop 	ax
+STACK SEGMENT STACK
+	DW 256 DUP (?)
+STACK ENDS
+
+; Обработчик прерывания
+ROUT proc far
+	jmp ROUT_begin
+ROUT_DATA:
+	SIGNATURE DB 'SIGN' ;сигнатура, некоторый код, который идентифицирует резидент
+	KEEP_IP DW 0 ;и смещения прерывания
+	KEEP_CS DW 0 ;для хранения сегмента
+	KEEP_PSP DW 0 ;и PSP
+	KEEP_SS DW 0
+	KEEP_AX DW 0	
+	KEEP_SP DW 0 
+ROUT_begin:
+	mov KEEP_AX, ax
+	mov KEEP_SS, ss
+	mov KEEP_SP, sp
+	mov ax, seg INT_STACK ;устанавливаем собственный стек
+	mov ss, ax
+	mov sp, 32h
+	mov ax, KEEP_ax
+
+	push ax
+	push dx
+	push ds
+	push es
 	
-	mov     ax, CS:KEEP_SS														
-	mov     ss, ax																
-	mov     SP, CS:KEEP_SP																																					
-	mov     ax, CS:KEEP_AX	
-
-endm
-
-my_int proc far
-	jmp 	body
-	Int_Tag dw 1234h
-body:
-	push_main
-	in		al, 60h
+	;проверяем скан-код far
+	in al, 60H ;читать ключ
+	;cmp al, 0Eh ;это требуемый код? 0E - скан-код Backspace
+	cmp al, 02h; 1
+	je DO_REQ ;получили требуемый скан-код
 	
-	mov		ch, 00h
+	;стандартный обработчик прерывания
+	pushf
+	call dword ptr CS:KEEP_IP ;переход на первоначальный обработчик
+	jmp ROUT_END
 	
-	cmp		al, cs:[Scancode_1]
-	jne		next1
-	mov		cl, '!'
-	jmp		do_req
-next1:	
-	cmp		al, cs:[Scancode_2]
-	jne		next2
-	mov		cl, '@'
-	jmp		do_req
-next2:	
-	cmp		al, cs:[Scancode_3]
-	jne		next3
-	mov		cl, '#'
-	jmp		do_req
-next3:	
-	cmp		al, cs:[Scancode_4]
-	jne		next4
-	mov		cl, '$'
-	jmp		do_req
-next4:	
-	cmp		al, cs:[Scancode_5]
-	jne		next5
-	mov		cl, '%'
-	jmp		do_req
-next5:	
-	cmp		al, cs:[Scancode_6]
-	jne		next6
-	mov		cl, '^'
-	jmp		do_req
-next6:
-	cmp		al, cs:[Scancode_7]
-	jne		next7
-	mov		cl, '&'
-	jmp		do_req
-next7:	
-	cmp		al, cs:[Scancode_8]
-	jne		next8
-	mov		cl, '*'
-	jmp		do_req
-next8:	
-	cmp		al, cs:[Scancode_9]
-	jne		next9
-	mov		cl, '('
-	jmp		do_req
-next9:
-	cmp		al, cs:[Scancode_0]
-	jne		int9do
-	mov		cl, ')'
-	jmp		do_req
+; собственный обработчик
+DO_REQ:
+	push ax
+	in al, 61h ;взять значение порта управления клавиатурой
+	mov ah, al ;сохранить его
+	or al, 80h ;установить бит разрешения для клавиатуры
+	out 61h, al ;и вывести его в управляющий порт
+	xchg ah, al ;извлечь исходное значение порта
+	out 61h, al ;и записать его обратно
+	mov al, 20h ;послать сигнал "конец прерывания"
+	out 20h, al ;контроллеру прерываний 8259
+	pop ax
 	
-int9do:
-	pop_main
-	jmp		cs:[Int9]
+ADD_TO_BUFF: ;запись символа в буфер клавиатуры
+	mov ah, 05h ;код функции
+	mov cl, 'X' ;пишем символ в буфер клавиатуры
+	mov ch, 00h	
+	int 16h
+	or al, al 
+	jz ROUT_END ; если переполненение
+	;oчистка буфера
+	CLI 
+	mov ax,es:[1Ah] ; адрес начала буфера
+	mov es:[1Ch],ax ; помещаем его в адрес конца
+	STI
+	jmp ADD_TO_BUFF
 
-do_req:
-	in 		al, 61h
-	mov 	ah, al
-	or 		al, 80h
-	out 	61h, al
-	xchg 	ah, al
-	out 	61H, al
-	mov 	al, 20h
-	out 	20h, al
-	
-	mov 	ah, 05h
-	int 	16h 
-	or 		al, al 
-	jnz 	skip 
-	jmp 	to_quit	
-;Aey i?enoee aooa?a iaai i?inoi onoaiiaeou cia?aiea
-;y?aeee 0040:001A ?aaiui cia?aie? y?aeee 0040:001C.
-skip:	
-	push 	es
-	push 	si
-	mov 	ax, 0040h
-	mov 	es, ax
-	mov 	si, 001ah
-	mov 	ax, es:[si] 
-	mov 	si, 001ch
-	mov 	es:[si], ax	
-	pop		si
-	pop		es
-
-to_quit:	
-	pop_main
-	mov 	al, 20h
-	out 	20h, al
+ROUT_END:
+	pop es
+	pop ds
+	pop dx
+	pop ax 
+	mov ss, KEEP_SS
+	mov sp, KEEP_SP
+	mov ax, KEEP_AX
+	mov al,20h
+	out 20h,al
 	iret
-my_int endp
-
-end_mem:
-
-old_int_save proc near
-	push_main
-	push 	es
-	push 	di
-	mov		ah, 35h
-	mov		al,	09h
-	int 	21h
-	mov 	cs:KEEP_IP, bx
-	mov 	cs:KEEP_CS, es
-	mov word ptr Int9+2, es
-	mov word ptr Int9, bx
-	pop 	di
-	pop 	es
-	pop_main
-	ret
-old_int_save endp
-
-set_new_int proc near
-	push_main
-	push 	ds
-	mov 	dx, offset my_int
-	mov 	ax, seg my_int
-	mov 	ds, ax
-	mov		ah, 25h
-	mov		al, 09h
-	int 	21h
-	pop 	ds
-	pop_main
-	ret
-set_new_int endp
-
-load_my_int proc near	
-	mov 	dx, seg code	
-	add 	dx, (end_mem-start_mem)
-	mov 	cl, 4
-	shr 	dx, cl ;div 16
-	inc 	dx
-	mov 	ah, 31h
-	int 	21h
-	ret
-load_my_int endp
-
-delete_my_int proc near
-	cli
-	push_main
-	push 	ds
-	push 	es
-	push 	di
-	mov		ah,35h
-	mov		al,09h
-	int 	21h
-	mov 	ax, es:[2]
-	mov 	cs:KEEP_CS, ax
-	mov 	ax, es:[4]
-	mov 	cs:KEEP_IP, ax
-	mov 	ax, es:[0]
-	mov 	cx, ax
-	mov 	es, ax
-	mov 	ax, es:[2Ch]
-	mov 	es, ax
-	xor 	ax, ax
-	mov 	ah, 49h
-	int 	21h
-	mov 	es, cx
-	xor 	ax, ax
-	mov 	ah, 49h
-	int 	21h
-	mov 	dx, cs:KEEP_IP
-	mov 	ax, cs:KEEP_CS
-	mov 	ds, ax
-	mov		ah, 25h
-	mov		al, 09h
-	int 	21h
-	pop 	di
-	pop 	es
-	pop 	ds
-	pop_main
-	sti
-	ret
-delete_my_int endp
-
-main proc near
-
-	push 	ds
-	mov 	ax, seg data
-	mov 	ds, ax
-	pop 	cs:PSP
+LAST_BYTE:
+ROUT ENDP
 	
-	mov 	es, cs:PSP
-	mov 	al, es:[80h]
-	cmp 	al, 4
-	jne 	Empty_Tail
+; Сокращение для функции вывода.
+PRINT_DX proc near
+	mov ah,09h
+	int 21h
+	ret
+PRINT_DX endp
 
-	mov 	al, byte PTR es:[82h]	
-	cmp 	al, '/'
-	jne		Empty_Tail
-	mov 	al, byte PTR es:[83h]
-	cmp 	al, 'u'
-	jne		Empty_Tail
-	mov 	al, byte PTR es:[84h]
-	cmp 	al, 'n'
-	jne		Empty_Tail
+; Проверка состояния загрузки нового прерывания в память
+CHECK_HANDLER proc near
+	mov ah,35h 
+	mov al,09h 
+	int 21h ; в es bx получим адрес обработчика прерываний
+	mov si, offset SIGNATURE 
+	sub si, offset ROUT ; в si смещение сигнатуры от начала функции
+	
+	mov ax,'IS'
+	cmp ax,es:[bx+si]
+	jne not_loaded
+	mov ax, 'NG'
+	cmp ax,es:[bx+si+2] 
+	je loaded
+	; Загружаем новый Обработчик
+not_loaded:
+	call SET_HANDLER
+	; Вычисляем память для резидента
+	mov dx,offset LAST_BYTE ; в байтах
+	mov cl,4 ;в параграфы в dx
+	shr dx,cl
+	inc dx
+	add dx,CODE ;прибавляем адрес code seg
+	sub dx,CS:KEEP_PSP ;вычитаем адрес psp
+	xor al,al
+	mov ah,31h
+	int 21h 
+
+; Проверка аргумента cmd
+loaded: 
+	push es
+	push ax
+	mov ax,KEEP_PSP 
+	mov es,ax
+	cmp byte ptr es:[82h],'/' 
+	jne args_false
+	cmp byte ptr es:[83h],'u' 
+	jne args_false
+	cmp byte ptr es:[84h],'n'
+	je do_unload
+
+args_false:
+	pop ax
+	pop es
+	mov dx,offset str_already_loaded
+	call PRINT_DX
+	ret
+
+; Выгружаем свой Обработчик
+do_unload:
+	pop ax
+	pop es
+	call DELETE_HANDLER
+	mov dx,offset str_unloaded
+	call PRINT_DX
+	ret
+CHECK_HANDLER endp
+
+;установка написанного прерывания в поле векторов прерываний
+SET_HANDLER proc near
+	push dx
+	push ds
+
+	mov ah,35h
+	mov al,09h
+	int 21h; es:bx
+	mov CS:KEEP_IP,bx 
+	mov CS:KEEP_CS,es
+
+	mov dx,offset ROUT
+	mov ax,seg ROUT
+	mov ds,ax
+	mov ah,25h
+	mov al,09h
+	int 21h
+
+	pop ds
+	mov dx,offset str_loaded
+	call PRINT_DX
+	pop dx
+	ret
+SET_HANDLER ENDP
+
+DELETE_HANDLER proc
+	push ds
+	; Восстанавливаем стандартный вектор прерывания:
+		CLI
+		mov dx,ES:[BX+SI+4] ; IP
+		mov ax,ES:[BX+SI+6] ; CS
+		mov ds,ax
 		
-	mov 	IsDelete, 1
-
-Empty_Tail:
-	mov		ah, 35h
-	mov		al,	09h
-	int 	21h
-	mov 	ax, es:[bx+3]
-	cmp 	ax, 1234h
-	je 		already_inst
-	
-	cmp 	IsDelete, 1
-	je 		not_inst
-	
-	call 	old_int_save
-	call 	set_new_int
-	call 	load_my_int
-	
-	jmp 	exit
-	
-already_inst:
-	cmp 	IsDelete, 1
-	je 		delete_my_int_main_m
-	mov		dx, offset Inst_Mess
-	mov 	ah, 09h
-    int 	21h
-	jmp 	exit
-	
-delete_my_int_main_m:
-	call 	delete_my_int
-	jmp 	exit
-	
-not_inst:
-	mov		dx, offset Not_Inst_Mess
-	mov 	ah, 09h
-    int 	21h
-	jmp		exit
-	
-exit:
-	xor 	al, al
-	mov 	ah, 4Ch
-	int 	21h
+		mov ax,2509h
+		int 21h 
+	; Освобождаем память:
+		push es
+		mov ax,ES:[BX+SI+8] ; PSP
+		mov es,ax 
+		mov es,es:[2Ch] ; Блока переменных среды
+		mov ah,49h         
+		int 21h
+		pop es
+		mov es,ES:[BX+SI+8] ; PSP ; Блока резидентной программы
+		mov ah, 49h
+		int 21h	
+		STI
+	pop ds
 	ret
-main endp
+DELETE_HANDLER ENDP 
 
-code ends
 
-data segment
-	IsDelete 		db 0
-	Inst_Mess		db 'Interrupt is already installed!', 10, 13, '$'
-	Not_Inst_Mess 	db 'Interrupt is not installed!', 10, 13, '$'
-data ends
+MAIN:
+	mov AX,DATA
+	mov DS,AX
+	mov KEEP_PSP,ES
+	
+	call CHECK_HANDLER
 
-Tstack segment stack
-	dw 128 dup (?)
-Tstack ends
+	xor AL,AL
+	mov AH,4Ch
+	int 21H
+	CODE ENDS	
 
-end main
+END START
