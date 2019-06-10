@@ -50,11 +50,17 @@ ROUT_:
     mov sp,0
     mov ax,KEEP_AX
 
-    mov al,0
+    mov ax,0040h
+    mov es,ax
+    mov al,es:[17h]
+    and al,00000010b
+    jz STAND
+
     in al,60h
     cmp al,_TILD
     je DO_REQ
 
+STAND:
     pushf
     call dword ptr CS:KEEP_IP
     jmp ROUT_END
@@ -82,7 +88,7 @@ ADDSYMB:
     mov ax,0040h
     mov es,ax
     mov ax,es:[1Ah]
-    mov es:[09h],ax
+    mov es:[1Ch],ax
     jmp ADDSYMB
 
 ROUT_END:
