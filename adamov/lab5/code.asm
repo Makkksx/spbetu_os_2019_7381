@@ -39,6 +39,7 @@ _DATA:
     KEEP_AX dw 0
     KEEP_SP dw 0
     _TILD db 29h
+    _OTHERSYM db 01h
 
 ROUT_:
     mov KEEP_SS,ss
@@ -49,28 +50,14 @@ ROUT_:
     mov sp,0
     mov ax,KEEP_AX
 
-    mov ax,0040h
-    mov es,ax
-    mov al,es:[17h]
-    cmp al,00000010b
-    jnz NEXT
-    in al,60H
-
-    cmp al,_TILD
-    je TILD
-
-NEXT:
-    pop es
-    pop ds
-    pop dx
-    mov ax,CS:KEEP_AX
-    mov sp,CS:KEEP_SP
-    mov ss,CS:KEEP_SS
-    jmp dword ptr cs:[KEEP_IP]
-
-TILD:
-    mov cl,01h
-    jmp DO_REQ
+    mov al,0
+	in al,60h
+	cmp al,_TILD
+	je DO_REQ
+	
+	pushf
+	call dword ptr CS:KEEP_IP
+	jmp ROUT_END
 
 DO_REQ:
     push ax
@@ -85,21 +72,25 @@ DO_REQ:
     pop ax
 
 ADDSYMB:
+    mov al,0
     mov ah,05h
+    mov cl,_OTHERSYM
     mov ch,00h
     int 16h
     or al,al
     jz ROUT_END
-    cli
+    mov ax,0040h
+    mov es,ax
     mov ax,es:[1Ah]
-    mov es:[1Ch],ax
-    sti
+    mov es:[09h],ax
     jmp ADDSYMB
 
 ROUT_END:
     pop es
     pop ds
     pop dx
+    mov al,20h
+	out 20h,al
     pop ax
     mov ax,KEEP_SS
     mov ss,ax
