@@ -51,13 +51,13 @@ ROUT_:
     mov ax,KEEP_AX
 
     mov al,0
-	in al,60h
-	cmp al,_TILD
-	je DO_REQ
-	
-	pushf
-	call dword ptr CS:KEEP_IP
-	jmp ROUT_END
+    in al,60h
+    cmp al,_TILD
+    je DO_REQ
+
+    pushf
+    call dword ptr CS:KEEP_IP
+    jmp ROUT_END
 
 DO_REQ:
     push ax
@@ -90,7 +90,7 @@ ROUT_END:
     pop ds
     pop dx
     mov al,20h
-	out 20h,al
+    out 20h,al
     pop ax
     mov ax,KEEP_SS
     mov ss,ax
