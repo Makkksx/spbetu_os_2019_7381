@@ -1,221 +1,175 @@
-TESTPC	SEGMENT
-        ASSUME  CS:TESTPC, DS:TESTPC, ES:NOTHING, SS:NOTHING
-        org 100H	
-START:  JMP BEGIN	
+TESTPC SEGMENT
+		ASSUME CS:TESTPC, DS:TESTPC, ES:NOTHING, SS:NOTHING
+		ORG 100H
+START: 	JMP	BEGIN
 
-EOF	EQU '$'
-_endl	db ' ',0DH,0AH,'$'
+SegAddInMem		db		'Segment address of inaccessible memory:     h', 0dh, 0ah, '$'
+SegAddEnv		db		'Segment address of environment:     h', 0dh, 0ah, '$'
+CommTail		db		'Command line tail in symbolic form: ', '$'
+NoSymb			db		'There are no characters in the tail of the command line!', 0dh, 0ah, '$'
+ContEnv			db		'The contents of the environment in symbolic form:', 0dh, 0ah, '$'
+DirectLine		db		'Path of program:', 0dh, 0ah, '$'
 
-_seg_inaccess	db 'Сегментный адрес недоступной памяти:     ',0DH,0AH,EOF
-_seg_env		db 'Сегментный адрес среды:    ',0DH,0AH,EOF
-_tail		db 'Хвост командной строки: ', EOF
-_env 		db 'Содержимое области среды:',0DH,0AH,EOF
-_dir	db 'Путь загружаемого модуля:',0DH,0AH,EOF
-_symb  db 'нет символов',0DH,0AH,EOF
 
-TETR_TO_HEX PROC near
-	and AL,0Fh
-	cmp AL,09
-	jbe NEXT
-	add AL,07
-NEXT:	add AL,30h
-	ret
-TETR_TO_HEX ENDP
 
-BYTE_TO_HEX PROC near
-	push CX
-	mov AH,AL
-	call TETR_TO_HEX
-	xchg AL,AH
-	mov CL,4
-	shr AL,CL
-	call TETR_TO_HEX  
-	pop CX
-	ret
-BYTE_TO_HEX ENDP
+Endline			db		0dh, 0ah, '$'
 
-WRD_TO_HEX PROC near
-	push BX
-	mov BH,AH
-	call BYTE_TO_HEX
-	mov [DI],AH
-	dec DI
-	mov [DI],AL
-	dec DI
-	mov AL,BH
-	call BYTE_TO_HEX
-	mov [DI],AH
-	dec DI
-	mov [DI],AL
-	pop BX
-	ret
-WRD_TO_HEX ENDP
 
-BYTE_TO_DEC PROC near
-	push CX
-	push DX
-	xor AH,AH
-	xor DX,DX
-	mov CX,10
-loop_bd: div CX
-	or DL,30h
-	mov [SI],DL
-	dec SI
-	xor DX,DX
-	cmp AX,10
-	jae loop_bd
-	cmp AL,00h
-	je end_l
-	or AL,30h
-	mov [SI],AL
-end_l:	pop DX
-	pop CX
-	ret
-BYTE_TO_DEC ENDP
 
-SEGMENT_INACCESS PROC NEAR
-	push ax
-	push di
-	mov ax, ds:[02h]
-	mov di, offset _seg_inaccess
-	add di, 40
-	call WRD_TO_HEX
-	pop di
-	pop ax
-	ret
-SEGMENT_INACCESS ENDP
+TETR_TO_HEX	PROC near
+		and		al,0fh
+		cmp		al,09
+		jbe		NEXT
+		add		al,07
+NEXT:	add		al,30h
+		ret
+TETR_TO_HEX	ENDP
 
-SEGMENT_ENVIRONMENT PROC NEAR
-	push ax
-	push di
-	mov ax, ds:[2Ch] 
-	mov di, offset _seg_env
-	add di, 27 
-	call WRD_TO_HEX
-	pop di
-	pop ax
-	ret
-SEGMENT_ENVIRONMENT ENDP
+BYTE_TO_HEX	PROC near
 
-TAIL PROC NEAR
-	push ax
-	push cx
-	push dx
-	push si
-	push di
-	mov ch, ds:[80h] 
-	mov si, 81h
-	mov di, offset _tail
-	add di, 20
-CopyCmd:
-	cmp ch, 0h
-	je NoCmd 
-;No NoCmd
-	mov al, ds:[si] 
-	mov [di], al 
-	inc di 
-	inc si 
-	dec ch 
-	jmp CopyCmd 
-NoCmd:
-  mov al, 0h
-  mov [di], al
-	mov dx, offset _symb
-	call PRINT
-	pop di
-	pop si
-	pop dx
-	pop cx
-	pop ax
-	ret
-TAIL ENDP
+		push	cx
+		mov		ah,al
+		call	TETR_TO_HEX
+		xchg	al,ah
+		mov		cl,4
+		shr		al,cl
+		call	TETR_TO_HEX 
+		pop		cx 			
+		ret
+BYTE_TO_HEX	ENDP
 
-CONTENT PROC NEAR
-	push ax
-	push dx
-	push ds
-	push es
-	mov dx, offset _env
-	call PRINT
-	mov ah, 02h 
-	mov es, ds:[2Ch]
-	xor si, si
-WriteCont:
-	mov dl, es:[si]
-	int 21h			
-	cmp dl, 0h		
-	je	EndOfLine
-	inc si			
-	jmp WriteCont
-EndOfLine:
-	mov dx, offset _endl
-	call PRINT
-	inc si
-	mov dl, es:[si]
-	cmp dl, 0h		
-	jne WriteCont
-	mov dx, offset _endl
-	call PRINT
-	pop es
-	pop ds
-	pop dx
-	pop ax
-	ret
-CONTENT ENDP
+WRD_TO_HEX	PROC near
 
-PATH PROC NEAR
-	push ax
-	push dx
-	push ds
-	push es
-	mov dx, offset _dir
-	call PRINT
-	add si, 3h
-	mov ah, 02h
-	mov es, ds:[2Ch]
-	WriteDir:
-	mov dl, es:[si]
-	cmp dl, 0h
-	je EndOfDir
-	int 21h
-	inc si
-	jmp WriteDir
-	EndOfDir:
-	pop es
-	pop ds
-	pop dx
-	pop ax
-	ret
-PATH ENDP
+		push	bx
+		mov		bh,ah
+		call	BYTE_TO_HEX
+		mov		[di],ah
+		dec		di
+		mov		[di],al
+		dec		di
+		mov		al,bh
+		xor		ah,ah
+		call	BYTE_TO_HEX
+		mov		[di],ah
+		dec		di
+		mov		[di],al
+		pop		bx
+		ret
+WRD_TO_HEX	ENDP
 
-PRINT PROC NEAR
-	push ax
-	mov ah, 09h
-	int 21h
-	pop ax
-	ret
-PRINT ENDP
+BYTE_TO_DEC	PROC near
 
-BEGIN:
-	call SEGMENT_INACCESS
-  mov dx, offset _seg_inaccess
-	call PRINT
-	call SEGMENT_ENVIRONMENT
-  mov dx, offset _seg_env
-	call PRINT
-  mov dx, offset _tail
-	call PRINT
-	call TAIL
-  mov dx, offset _endl
-	call PRINT
-	call CONTENT
-	call PATH
-	mov dx, offset _endl
-	call PRINT
-	
-	xor al, al
-	mov ah, 4ch
-	int 21h
+		push	cx
+		push	dx
+		push	ax
+		xor		ah,ah
+		xor		dx,dx
+		mov		cx,10
+loop_bd:div		cx
+		or 		dl,30h
+		mov 	[si],dl
+		dec 	si
+		xor		dx,dx
+		cmp		ax,10
+		jae		loop_bd
+		cmp		ax,00h
+		jbe		end_l
+		or		al,30h
+		mov		[si],al
+end_l:	pop		ax
+		pop		dx
+		pop		cx
+		ret
+BYTE_TO_DEC	ENDP
 
+PRINT	PROC 	near
+		push 	ax
+		mov 	ah,09h
+		int		21h
+		pop 	ax
+		ret
+PRINT	ENDP	
+
+BEGIN:	
+		;Segment address of inaccessible memory
+		mov 	ax, es:[02h]
+		mov		di, offset SegAddInMem + 43
+		call 	WRD_TO_HEX
+		mov		dx, offset SegAddInMem
+		call 	PRINT
+		
+		;Segment address of environment
+		mov 	ax, es:[2Ch]
+		mov		di, offset SegAddEnv + 35
+		call 	WRD_TO_HEX
+		mov		dx, offset SegAddEnv
+		call 	PRINT
+		
+		;╨бommand line tail in symbolic form
+		sub 	cx, cx
+		mov		cl, es:[80h]
+		cmp		cl, 0
+		je		fin
+		lea		dx, CommTail
+		call	PRINT
+		mov		ah, 02h
+		mov		bx, 0
+	cycle:
+			mov 	dl ,es:[bx+81h]
+			int 	21h
+			inc 	bx
+		loop	cycle
+		lea		dx, Endline
+		call 	PRINT
+		jmp 	Envir
+	fin:	
+		lea		dx, NoSymb
+		call 	PRINT
+		
+		;The contents of the environment
+	Envir:
+		lea		dx, ContEnv
+		call 	PRINT
+		mov 	ax, es:[2Ch]
+		mov 	es, ax
+		mov		bx, 0
+		mov 	ah, 02h
+	copy:
+		cmp		word ptr es:[bx], 0000h
+		je		end_ce
+		cmp		byte ptr es:[bx], 00h
+		jne		print_symb
+		lea		dx, Endline
+		call	PRINT
+		inc		bx
+	print_symb:
+		mov		dl, es:[bx]
+		int		21h
+		inc		bx
+		jmp		copy
+	end_ce:
+		lea		dx, Endline
+		call	PRINT
+		
+		;Path of program
+		add 	bx, 4;
+		lea		dx, DirectLine
+		call 	PRINT
+		mov 	ah, 02h		
+	out_path:
+		cmp 	byte ptr es:[bx], 00h
+		je 		end_path
+		mov 	dl, es:[bx]
+		int 	21h
+		inc 	bx
+		jmp 	out_path
+	end_path:
+		lea		dx, Endline
+		call 	PRINT
+		
+		;Exit in DOS
+		mov ax, 4C00h
+		int 21h
+		
 TESTPC 	ENDS
-		END START
+		END  	START
